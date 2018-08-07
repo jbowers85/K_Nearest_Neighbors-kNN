@@ -12,8 +12,7 @@ You can access the data using the UCI Machine Learning repository
 [White Wine](https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv)
 
 Or you can save the 2 files in this repository to your working directory to follow along ("RedWine_Quality.csv" and "WhiteWine_Quality.csv").
-
-
+  
 If using this code within R Studio, collapse all sections by pressing Alt + O for easier navigation between sections.  
 
 ### Sections:
