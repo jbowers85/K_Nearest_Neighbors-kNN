@@ -17,4 +17,4 @@ If using this code within R Studio, collapse all sections by pressing Alt + O fo
 
 ### Sections:
 
-1.)  K-NEAREST NEIGHBORS - CLASSIFICATION - ORDINAL DEPENDENT VARIABLE
+1.)  K-Nearest Neighbors - Classification - Ordinal Dependent Variable
