@@ -203,7 +203,7 @@ newRedData <- data.frame(fixed.acidity=15, volatile.acidity=0.7, citric.acid=0.2
                   free.sulfur.dioxide=20, total.sulfur.dioxide=63, density=0.996, pH=6, sulphates=0.8, alcohol=8.9)
 newRedData
 
-#### standardize using column means and st dev from original non-normalized dataset 
+#### create standardizing function using column means and st dev from original non-normalized dataset 
 standardizeNewData <- function(new,old) {
   oldColumnMeans <- apply(old,2,mean)
   oldColumnStDev <- apply(old,2,sd)
@@ -213,9 +213,8 @@ standardizeNewData <- function(new,old) {
   return(newStandardized)
 }
   
-  
+#### use our function to standardize our new data
 newRedData.processed <- standardizeNewData(newRedData, redTestData[c(-12,-13,-14)])
 
-
+#### apply model to our standardized data to generate prediction
 predict(kknn_fit_red,newRedData.processed)
-
