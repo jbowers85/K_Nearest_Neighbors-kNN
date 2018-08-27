@@ -7,7 +7,7 @@ This repository is meant to provide an example of implementing a k-Nearest Neigh
 
 ## Getting Started
 
-You can access the data from the UCI Machine Learning repository (linked below) by following along with the R code.
+You can access the data from the UCI Machine Learning repository (linked below) by following along with the R code.  
 [Red Wine](https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv)  
 [White Wine](https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv)
 
