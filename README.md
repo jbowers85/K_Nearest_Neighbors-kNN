@@ -18,4 +18,4 @@ If using this code within R Studio, collapse all sections by pressing Alt + O fo
 
 ### Sections:
 
-1.)  K-Nearest Neighbors - Classification - Ordinal Dependent Variable
+1.)  K-Nearest Neighbors - Classification - Wine Data - Ordinal Dependent Variable
