@@ -3,7 +3,7 @@ Examples of kNN with Wine data
 
 This repository is meant to provide an example of implementing a k-Nearest Neighbor algorithm in R.  We will predict the wine quality of both red and white wine! 
 
-**k-Nearest Neighbors**: Uses a similarity measure (distance function) to predict the class of a record using the closest 'n' neighbors. 
+**k-Nearest Neighbors**: Uses a similarity measure (distance function) to predict the class of a record using the closest 'k' neighbors. 
 
 ## Getting Started
 
