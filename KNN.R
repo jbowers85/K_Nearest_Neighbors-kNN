@@ -1,292 +1,220 @@
-#__________________________________________________________________________________
-# DECISION TREE & RANDOM FOREST - SURVIVAL CLASSIFICATION 
-# TITANIC DATA
+#___________________________________________________________________________________________________________________________________
+# This is an example workflow that predicts the quality of wine (1-10) using the K-Nearest Neighbor (kNN) algorithm.
 #
 # By: James Bowers
-#
-# collapse sections:  Alt + O
-# expand sections:    Shift + Alt + O
-#
-#___________________________________________________________________________________
+# 
+# The data used in this code was taken from the UCI Machine Learning Repository; https://archive.ics.uci.edu/ml/datasets/wine+quality.
+# 
+# Source Data Citation: P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis.
+# Modeling wine preferences by data mining from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553, 2009.
+# 
+#___________________________________________________________________________________________________________________________________
 
-## 1.) DECISION TREE - CLASSIFICATION - BINARY DEPENDENT VARIABLE ####
+library(GGally)
+library(caret)
+library(kknn)
+
+
+## 1.) K NEAREST NEIGHBORS - CLASSIFICATION - ORDINAL DEPENDENT VARIABLE ####
 
 ### Get Data ####
-titanic.train <- read.csv("Titanic_train.csv", header = TRUE)
-head(titanic.train)
 
-titanic.test <- read.csv("Titanic_test.csv", header = TRUE)
-head(titanic.test)
+#### get both URLs
+redUrl <- "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv"
+whiteUrl <- "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv"
 
+#### store and inspect
+redData <- read.csv(redUrl, header=TRUE , sep=';')
+head(redData)
+whiteData <- read.csv(whiteUrl, header=TRUE , sep=';')
+head(whiteData)
+
+### Cleanse ####
+
+#### add a column that identifies the color
+redData$color <- "red"
+whiteData$color <- "white"
+
+#### reorder columns so that color is first
+redData <- redData[c(13,1:12)]
+whiteData <- whiteData[c(13,1:12)]
+
+head(redData)
+head(whiteData)
+
+#### combine colors in a single data frame
+allData <- rbind(redData, whiteData)
+
+##### check to make sure all data was inserted into allData
+(nrow(redData) + nrow(whiteData)) == nrow(allData)
+
+#### convert data types
+allData$color <- as.factor(allData$color)
+allData$quality <- factor(allData$quality, ordered=TRUE)
 
 ### Profile ####
-survived <- titanic.train$Survived # retain classification for training
+sapply(allData, function(x) sum(length(which(is.na(x))))) # NA count
 
-titanic.combined <- rbind(titanic.train[, -2], titanic.test) # create a combined data frame to for profiling/cleansing
+dim(allData)
+str(allData)
+summary(allData)
 
-sapply(titanic.combined, function(y) sum(length(which(is.na(y))))) # NA count
-dim(titanic.combined)
-str(titanic.combined)
-summary(titanic.combined)
+ggpairs(allData) # pkg: GGally
+
+#### identify collinear features for possible removal
+corrMatrix <- cor(allData[2:12])
+corrMatrix
+highlyCorr <- findCorrelation(corrMatrix, cutoff = 0.7,verbose=T, exact=T)
+
+colnames(corrMatrix)[highlyCorr] # print the columns to remove according to cutoff
 
 
-### Cleanse #### 
-#### convert data types
-titanic.combined$Name <- as.character(titanic.combined$Name)
-titanic.combined$Ticket <- as.character(titanic.combined$Ticket)
-titanic.combined$Cabin <- as.character(titanic.combined$Cabin)
+### Split Data ####
 
-titanic.combined$Pclass <- as.factor(titanic.combined$Pclass)
-titanic.combined$Sex <- as.factor(titanic.combined$Sex)
+#### split data by color
+whiteData <- allData[which(allData$color == 'white'), -1]
+redData <- allData[which(allData$color == 'red'), -1]
 
-str(titanic.combined)
+#### create train and test set 
+##### Red
+redTrainIndex <- createDataPartition(redData$quality, p=0.8, list=FALSE) # pkg: caret
+redTrainIndex
+redTrainData <- redData[redTrainIndex,]
+redTestData <- redData[-redTrainIndex,]
 
-### Handle Nulls ####
+nrow(redTestData)/nrow(redTrainData)
 
-#### Variable: Fare
-titanic.combined$Fare[is.na(titanic.combined$Fare)] <- median(titanic.combined$Fare, na.rm = TRUE)
+##### White
+whiteTrainIndex <- createDataPartition(whiteData$quality, p=0.8, list=FALSE) # pkg: caret
+whiteTrainIndex
+whiteTrainData <- whiteData[whiteTrainIndex,]
+whiteTestData <- whiteData[-whiteTrainIndex,]
 
-#### Variable: Age
-titanic.combined$Age[is.na(titanic.combined$Age)] <- median(titanic.combined$Age, na.rm = TRUE)
+nrow(whiteTestData)/nrow(whiteTrainData)
+
+#### verify split proportions
+par(mfrow=c(2,2)) 
+barplot(table(redTrainData$quality) / nrow(redTrainData), col='indianred3', main="Red: Train")
+barplot(table(redTestData$quality) / nrow(redTestData), col='indianred3', main="Red: Test")
+
+barplot(table(whiteTrainData$quality) / nrow(whiteTrainData), col='peachpuff', main="White: Train") 
+barplot(table(whiteTestData$quality) / nrow(whiteTestData), col='peachpuff', main="White: Test") 
+par(mfrow=c(1,1)) 
+
+#### reset factors for red since red has no '9' quality scores
+redTrainData$quality <- factor(redTrainData$quality)
+redTestData$quality <- factor(redTestData$quality)
 
 
 ### Build Model ####
 
-#### Split data back into testing and training sets
-titanic.train <- titanic.combined[1:891, c(2,4,5,6,7,9,11)]
-titanic.train$Survived <- as.factor(survived)
+#### Red: weighted kNN using kknn package
 
-titanic.test <- titanic.combined[892:1309, c(1,2,4,5,6,7,9,11)]
+##### apply preprocessing to training and testing sets independently, we don't want to "leak" information to our training data
+redTrainData.processed <- predict(preProcess(redTrainData, method=c("center", "scale")), redTrainData)
+summary(redTrainData.processed)
 
-str(titanic.test)
-str(titanic.train)
+redTestData.processed <- predict(preProcess(redTestData, method=c("center", "scale")), redTestData)
+summary(redTestData.processed)
 
+kknn_fit_red <- train.kknn(quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + 
+                   free.sulfur.dioxide + total.sulfur.dioxide + density  + pH + sulphates + alcohol,
+                  data = redTrainData.processed, 
+                  kmax=25, distance=1, kernel=c("triangular", "gaussian", "rank", "rectangular", "epanechnikov", "optimal"), 
+                  contrasts = c(unordered = "contr.dummy", ordered = "contr.ordinal"))
 
-library(caret)
-####  set up training controls
-caret.control <- trainControl(method = "cv", number = 10)
-
-####  train model using RandomForest
-dt.cv <- train(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, 
-               data = titanic.train,
-               method = "rpart",
-               trControl = caret.control,
-               # na.action = na.pass,
-               minsplit = 5, cp = 0.01, xval = 10, maxdepth = 10)
+kknn_fit_red
+plot(kknn_fit_red)
 
 
-#### retrieve trained model using the best parameters from all the data
-dt.best <- dt.cv$finalModel
+#### White: weighted kNN using kknn package
 
-#### plot the decision tree
-plot(dt.best)
-text(dt.best)
+##### apply preprocessing to training and testing sets independently, we don't want to "leak" information to our training data
+whiteTrainData.processed <- predict(preProcess(whiteTrainData, method=c("center", "scale")), whiteTrainData)
+summary(whiteTrainData.processed)
 
+whiteTestData.processed <- predict(preProcess(whiteTestData, method=c("center", "scale")), whiteTestData)
+summary(whiteTestData.processed)
 
-library(rattle)
-fancyRpartPlot(dt.best, main = "Decision Tree", sub = "", caption = "TESTER", type=5)
+kknn_fit_white <- train.kknn(quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + 
+                         free.sulfur.dioxide + total.sulfur.dioxide + density  + pH + sulphates + alcohol,
+                       data = whiteTrainData.processed, 
+                       kmax=25, distance=1, kernel=c("triangular", "gaussian", "rank", "rectangular", "epanechnikov", "optimal"), 
+                       contrasts = c(unordered = "contr.dummy", ordered = "contr.ordinal"))
 
-
-### Predict ####
-preds <- predict(dt.cv, titanic.test, type = "raw") # or use class="prob" to get percentages so we can adjust threshold manually. 
-
-
-### Save Results ####
-submission <- data.frame(PassengerId = titanic.test$PassengerId, Survived = preds)
-
-#### Write out a .CSV suitable for Kaggle submission
-write.csv(submission, file = "Kaggle_Titanic.csv", row.names = FALSE)
+kknn_fit_white
+plot(kknn_fit_white)
 
 
-
-## 2.) RANDOM FOREST CLASSIFICATION - ORDINAL DEPENDENT VARIABLE ####
-
-### Get Data ####
-titanic.train <- read.csv("Titanic_train.csv", header = TRUE)
-head(titanic.train)
-
-titanic.test <- read.csv("Titanic_test.csv", header = TRUE)
-head(titanic.test)
-
-
-### Profile ####
-survived <- titanic.train$Survived # retain survival classification for training
-
-titanic.combined <- rbind(titanic.train[, -2], titanic.test) # create a combined data frame to for profiling/cleansing
-
-sapply(titanic.combined, function(y) sum(length(which(is.na(y))))) # NA count
-dim(titanic.combined)
-str(titanic.combined)
-summary(titanic.combined)
-
-### Cleanse #### 
-#### convert data types
-titanic.combined$Name <- as.character(titanic.combined$Name)
-titanic.combined$Ticket <- as.character(titanic.combined$Ticket)
-titanic.combined$Cabin <- as.character(titanic.combined$Cabin)
-
-titanic.combined$Pclass <- as.factor(titanic.combined$Pclass)
-titanic.combined$Sex <- as.factor(titanic.combined$Sex)
-
-str(titanic.combined)
+#### Alternatively: non-weighted kknn using caret package
+# 
+##### define controls and fit model
+# control <- trainControl(method = "repeatedcv", number=10, repeats=3)
+# 
+# knn_fit <- train(quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + 
+#                  free.sulfur.dioxide + total.sulfur.dioxide + density  + pH + sulphates + alcohol + color,
+#                  data=redTrainData, 
+#                  method="knn", 
+#                  preProcess=c("center", "scale"),
+#                  trControl=control,
+#                  tuneLength=25)
+# 
+# knn_fit
+# plot(knn_fit)
+# 
+# knnPredict <- predict(knn_fit, redTestData[,c(-13,-14,-15)])
+# cm.knn <- confusionMatrix(knnPredict, redTestData$quality)
+# cm.knn
+# cm.knn$table
+# 
+# acc.knn <- cm.knn$overall[1]
+# acc.knn
 
 
-### Feature Engineer ####  
-titanic.combined$CabinPrefix <- as.factor(substr(titanic.combined$Cabin,1,1))
 
-titanic.combined$FamUnit <- titanic.combined$SibSp + titanic.combined$Parch
+### Evaluate ####
 
+#### Red
+cm.kknn.red <- table(predict(kknn_fit_red, redTestData.processed[,-12]), redTestData$quality)
+cm.kknn.red
 
-titanic.combined$Type <- NA # initialize type feature
-#### Miss
-missIndex <- grep("Miss", titanic.combined$Name, ignore.case = FALSE)
-titanic.combined$Type[missIndex] <- "Miss"
-#### Mrs
-mrsIndex <- grep("Mrs\\.", titanic.combined$Name, ignore.case = FALSE)
-msIndex <- grep("Ms\\.", titanic.combined$Name, ignore.case = FALSE)
-mmeIndex <- grep("Mme", titanic.combined$Name, ignore.case = FALSE)
-mlleIndex <- grep("Mlle", titanic.combined$Name, ignore.case = FALSE)
-titanic.combined$Type[mrsIndex] <- "Mrs"
-titanic.combined$Type[msIndex] <- "Mrs"
-titanic.combined$Type[mmeIndex] <- "Mrs"
-titanic.combined$Type[mlleIndex] <- "Mrs"
-#### Mr
-mrIndex <- grep("Mr\\.", titanic.combined$Name, ignore.case = FALSE)
-titanic.combined$Type[mrIndex] <- "Mr"
-sirIndex <- grep("Sir\\.", titanic.combined$Name, ignore.case = FALSE)
-titanic.combined$Type[sirIndex] <- "Mr"
-titanic.combined$Type[823] <- "Mr" 
-#### Master
-masterIndex <- grep("Master", titanic.combined$Name, ignore.case = FALSE)
-titanic.combined$Type[masterIndex] <- "Master"
-#### Other Official Title
-drIndex <- grep("Dr\\.", titanic.combined$Name, ignore.case = FALSE)
-majorIndex <- grep("Major", titanic.combined$Name, ignore.case = FALSE)
-colIndex <- grep("Col\\.", titanic.combined$Name, ignore.case = FALSE)
-captIndex <- grep("Capt", titanic.combined$Name, ignore.case = FALSE)
-revIndex <- grep("Rev\\.", titanic.combined$Name, ignore.case = FALSE)
-donIndex <- grep("Don\\.", titanic.combined$Name, ignore.case = FALSE)
-donaIndex <- grep("Dona\\.", titanic.combined$Name, ignore.case = FALSE)
-countessIndex <- grep("Countess", titanic.combined$Name, ignore.case = FALSE)
-ladyIndex <- grep("Lady", titanic.combined$Name, ignore.case = FALSE)
-titanic.combined$Type[drIndex] <- "Other_Official"
-titanic.combined$Type[majorIndex] <- "Other_Official"
-titanic.combined$Type[colIndex] <- "Other_Official"
-titanic.combined$Type[captIndex] <- "Other_Official"
-titanic.combined$Type[revIndex] <- "Other_Official"
-titanic.combined$Type[donIndex] <- "Other_Official"
-titanic.combined$Type[donaIndex] <- "Other_Official"
-titanic.combined$Type[countessIndex] <- "Other_Official"
-titanic.combined$Type[ladyIndex] <- "Other_Official"
+acc.kknn.red <- sum(diag(cm.kknn.red))/sum(cm.kknn.red)
+acc.kknn.red
 
-#### convert to factor
-titanic.combined$Type <- as.factor(titanic.combined$Type)
-table(titanic.combined$Type)
-head(titanic.combined)
+redTestData$prediction <- predict(kknn_fit_red, redTestData.processed[,-12])
+redTestData$pred_diff <- as.numeric(redTestData$quality) - as.numeric(redTestData$prediction)
+barplot(table(redTestData$pred_diff), col='indianred3', main="Red: Prediction Error")
 
+#### White
+cm.kknn.white <- table(predict(kknn_fit_white, whiteTestData.processed[,-12]), whiteTestData$quality)
+cm.kknn.white
 
-### Handle Nulls ####
+acc.kknn.white <- sum(diag(cm.kknn.white))/sum(cm.kknn.white)
+acc.kknn.white
 
-#### Variable: Fare
-titanic.combined$Fare[is.na(titanic.combined$Fare)] <- median(titanic.combined$Fare, na.rm = TRUE)
-
-#### Variable: Age
-
-##### Method 1: Multiple Linear Regression
-titanic.combined.ageNA <- titanic.combined[is.na(titanic.combined[,5]),]
-titanic.combined.ageNotNA <- titanic.combined[!is.na(titanic.combined[,5]),]
-
-pairs(titanic.combined.ageNotNA[,c(5,2,11,14)])
-
-library(car)
-
-m <- lm(Age ~ Pclass+Embarked+Type, data = titanic.combined.ageNotNA)
-vifdf <- data.frame(vif(m))
-vifdf  # VIF > 10 is large; VIF >5 & <10 is medium 
-
-library(MASS)
-step <- stepAIC(m, direction="both", trace=FALSE)
-summary(step)$coeff 
-summary(step)$adj.r.squared # this model explains 42% of the variation in mpg
-
-ages <- predict(step, titanic.combined.ageNA)
-
-##### Method 2: Imputation using MICE
-titanic.imputed <- titanic.combined[ ,c(2, 5, 14)]## keep only necessary columns for imputation
-str(titanic.imputed)
-
-library(mice)
-tempData <- mice(titanic.imputed,m=5,maxit=50,meth='pmm',seed=500)
-summary(tempData)
-titanic.imputed <- complete(tempData,1)
-
-###### save to CSV then Read the CSV to get rid of imputed data frame
-write.csv(titanic.imputed, file = "titanic.imputed.csv", row.names = FALSE)
-titanic.imputed <- read.csv("titanic.imputed.csv")
-str(titanic.imputed)
-
-##### Compare Method 1 & Method 2
-imputedAges <- titanic.imputed$Age
-imputedAges <- imputedAges[titanic.combined.ageNA[,1]]
-
-regressAges <- as.numeric(ages)
-
-data.frame(imputedAges, regressAges)
-
-##### apply values from Method 1 or Method 2
-titanic.combined[is.na(titanic.combined[,5]),]$Age <- regressAges
-titanic.combined[is.na(titanic.combined[,5]),]$Age <- imputedAges
-
-head(titanic.combined,25)
-
-### Build Model ####
-#### Split data back into testing and training sets
-titanic.train <- titanic.combined[1:891, c(2,4,5,6,7,9,11,12,14)]
-titanic.train$Survived <- as.factor(survived)
-
-titanic.test <- titanic.combined[892:1309, c(2,4,5,6,7,9,11,12,14)]
-
-str(titanic.test)
-str(titanic.train)
-
-####  set seed to ensure reproducibility between runs
-set.seed(217)
-
-####  set up caret to perform 10-fold cross validation repeated 3 times
-library(caret)
-caret.control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-
-####  train model using RandomForest
-rf.cv <- train(Survived ~ .
-               , 
-               data = titanic.train,
-               method = "rf",
-               trControl = caret.control,
-               tuneLength = 7,
-               importance = TRUE,
-               ntree = 100,
-               nodesize = 5,
-               maxnodes = 100)
-
-#### Display the results of the cross validation
-plot(rf.cv)
-rf.cv
-
-#### standard deviation of CV
-cat(paste("\nCross validation standard deviation:",  
-          sd(rf.cv$resample$Accuracy), "\n", sep = " "))
-
-#### retrieve trained model using the best parameters from all the data
-rf.best <- rf.cv$finalModel
-
-#### which variable are important?
-varImpPlot(rf.best)
+whiteTestData$prediction <- predict(kknn_fit_white, whiteTestData.processed[,-12])
+whiteTestData$pred_diff <- as.numeric(whiteTestData$quality) - as.numeric(whiteTestData$prediction)
+barplot(table(whiteTestData$pred_diff), col='peachpuff', main="White: Prediction Error")
 
 ### Predict ####
-preds <- predict(rf.cv, titanic.test, type = "raw")
 
-### Save Results ####
-submission <- data.frame(PassengerId = titanic.test$PassengerID, Survived = preds)
+#### define new record
+newRedData <- data.frame(fixed.acidity=15, volatile.acidity=0.7, citric.acid=0.2, residual.sugar=2.8, chlorides=0.09, 
+                  free.sulfur.dioxide=20, total.sulfur.dioxide=63, density=0.996, pH=6, sulphates=0.8, alcohol=8.9)
+newRedData
 
-#### Write out a .CSV suitable for Kaggle submission
-write.csv(submission, file = "Kaggle_Titanic.csv", row.names = FALSE)
+#### create standardizing function using column means and st dev from original non-normalized dataset 
+standardizeNewData <- function(new,old) {
+  oldColumnMeans <- apply(old,2,mean)
+  oldColumnStDev <- apply(old,2,sd)
+  
+  newStandardized <- (new - oldColumnMeans) / oldColumnStDev
+  
+  return(newStandardized)
+}
+  
+#### use our function to standardize our new data
+newRedData.processed <- standardizeNewData(newRedData, redTestData[c(-12,-13,-14)])
+
+#### apply model to our standardized data to generate prediction
+predict(kknn_fit_red,newRedData.processed)
