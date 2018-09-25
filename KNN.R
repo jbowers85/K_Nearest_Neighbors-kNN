@@ -1,5 +1,5 @@
 #___________________________________________________________________________________________________________________________________
-# This is an example workflow that predicts wine quality using the K Nearest Neighbor (kNN) algorithm.
+# This is an example workflow that predicts the quality of wine (1-10) using the K-Nearest Neighbor (kNN) algorithm.
 #
 # By: James Bowers
 # 
