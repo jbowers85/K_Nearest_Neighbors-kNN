@@ -12,9 +12,6 @@
 ## 1.) DECISION TREE - CLASSIFICATION - BINARY DEPENDENT VARIABLE ####
 
 ### Get Data ####
-setwd("C:/Users/hj163e/Documents/My Folder/Personal/GitHub Projects/5 - Decision Tree-Random Forest (classification)")
-getwd()
-
 titanic.train <- read.csv("Titanic_train.csv", header = TRUE)
 head(titanic.train)
 
